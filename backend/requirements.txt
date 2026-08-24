@@ -1,0 +1,14 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+alembic
+psycopg2-binary
+pydantic
+pydantic-settings
+python-dotenv
+google-genai
+# Headless variant: no libGL system dependency needed on hosts like Render.
+opencv-python-headless
+pillow
+python-multipart
+supabase

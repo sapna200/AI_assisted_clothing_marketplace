@@ -1,0 +1,11 @@
+.env
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+# Video upload / test artifacts
+test_assets/
+temp_uploads/
+gen_sample_video.py
