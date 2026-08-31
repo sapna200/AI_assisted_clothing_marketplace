@@ -7,10 +7,10 @@ class Product(Base):
     __tablename__ = "products"
 
     id = Column(Integer, primary_key=True, index=True)
-    title = Column(String, nullable=False)
+    title = Column(String, nullable=False, index=True)
     description = Column(Text, nullable=False)
-    brand = Column(String, nullable=True)
-    category = Column(String, nullable=False)
+    brand = Column(String, nullable=True, index=True)
+    category = Column(String, nullable=False, index=True)
     color = Column(String, nullable=False)
     sizes = Column(String, nullable=False)
     # base_price is nullable because AI drafts awaiting review have no price yet.
@@ -18,8 +18,8 @@ class Product(Base):
     discount_percent = Column(Integer, default=0)
     # Comma-separated public image URLs (same list-like pattern as `sizes`).
     image_urls = Column(String, nullable=True)
-    status = Column(String, default="approved")
-    created_at = Column(DateTime, default=func.now())
+    status = Column(String, default="approved", index=True)
+    created_at = Column(DateTime, default=func.now(), index=True)
     # --- AI ingestion pipeline fields (Day 4) ---
     owner_id = Column(Integer, nullable=True)
     video_url = Column(String, nullable=True)

@@ -1,13 +1,22 @@
 """Supabase Storage helpers for persisting product videos and images."""
 
+import io
+import logging
 import uuid
 
+from PIL import Image
 from supabase import create_client
 
 from app.core.config import settings
 
+logger = logging.getLogger(__name__)
+
 VIDEO_BUCKET = "product-videos"
 IMAGE_BUCKET = "product-images"
+
+# Max dimension for product images (width or height)
+MAX_IMAGE_DIMENSION = 1200
+IMAGE_QUALITY = 80  # WebP quality (0-100)
 
 
 class StorageError(Exception):
@@ -25,15 +34,35 @@ def _bucket_client(bucket_name: str):
     return client.storage.from_(bucket_name)
 
 
-def _upload(local_file_path: str, filename: str, content_type: str, bucket: str) -> str:
-    """Upload a local file to a Supabase bucket and return its public URL.
+def _optimize_image(file_path: str) -> tuple[bytes, str]:
+    """Resize and convert image to WebP for faster loading.
+
+    Returns (optimized_bytes, new_filename_with_webp_extension).
+    """
+    img = Image.open(file_path)
+    img = img.convert("RGB")  # Ensure RGB for WebP
+
+    # Resize if larger than max dimension (preserves aspect ratio)
+    img.thumbnail((MAX_IMAGE_DIMENSION, MAX_IMAGE_DIMENSION), Image.LANCZOS)
+
+    # Save as WebP for 30-50% smaller file size
+    buffer = io.BytesIO()
+    img.save(buffer, format="WEBP", quality=IMAGE_QUALITY, method=6)
+    buffer.seek(0)
+
+    # Change extension to .webp
+    filename = file_path.rsplit(".", 1)[0] + ".webp"
+    return buffer.read(), filename
+
+
+def _upload(
+    file_bytes: bytes, filename: str, content_type: str, bucket: str
+) -> str:
+    """Upload bytes to a Supabase bucket and return its public URL.
 
     The object path is namespaced under a UUID directory to avoid collisions.
     """
     bucket_client = _bucket_client(bucket)
-
-    with open(local_file_path, "rb") as f:
-        file_bytes = f.read()
 
     object_path = f"{uuid.uuid4().hex}/{filename}"
     bucket_client.upload(
@@ -42,16 +71,19 @@ def _upload(local_file_path: str, filename: str, content_type: str, bucket: str)
         file_options={"content-type": content_type},
     )
     public_url = bucket_client.get_public_url(object_path)
-    print(f"[storage] uploaded {bucket}/{object_path} -> {public_url}")
+    logger.info("uploaded %s/%s -> %s", bucket, object_path, public_url)
     return public_url
 
 
 def upload_video_to_storage(local_file_path: str, filename: str) -> str:
-    return _upload(local_file_path, filename, "video/mp4", VIDEO_BUCKET)
+    with open(local_file_path, "rb") as f:
+        return _upload(f.read(), filename, "video/mp4", VIDEO_BUCKET)
 
 
 def upload_image_to_storage(local_file_path: str, filename: str) -> str:
-    return _upload(local_file_path, filename, "image/jpeg", IMAGE_BUCKET)
+    """Upload an image after optimizing it (resize + WebP conversion)."""
+    optimized_bytes, webp_filename = _optimize_image(local_file_path)
+    return _upload(optimized_bytes, webp_filename, "image/webp", IMAGE_BUCKET)
 
 
 def delete_objects_by_public_urls(urls: list[str]) -> None:

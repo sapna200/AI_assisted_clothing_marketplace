@@ -4,6 +4,7 @@ Runs as a FastAPI BackgroundTask, so it opens its own DB session (the request's
 session finishes before the background task completes).
 """
 
+import logging
 import os
 import shutil
 import tempfile
@@ -12,6 +13,8 @@ from app.models.product import Product
 from app.services.ai_product_generator import generate_product_draft
 from app.services.frame_extractor import extract_frames, select_best_frames
 from app.services.storage import upload_image_to_storage, upload_video_to_storage
+
+logger = logging.getLogger(__name__)
 
 # Placeholder owner id until real auth exists (Day 5+).
 DEFAULT_OWNER_ID = 1
@@ -38,13 +41,13 @@ def process_video_and_create_draft(video_path: str, db_session_factory) -> None:
         # 1) Extract a wider pool of frames (8) to choose display images from.
         frame_paths = extract_frames(video_path, frames_dir, num_frames=8)
         if not frame_paths:
-            print("[ingestion] ERROR: no frames extracted, aborting")
+            logger.error("ingestion: no frames extracted, aborting")
             return
         paths_by_name = {os.path.basename(p): p for p in frame_paths}
 
         # 2) Ask Gemini for a structured draft from the frames.
         draft = generate_product_draft(frame_paths)
-        print(f"[ingestion] draft generated: {draft}")
+        logger.info("ingestion: draft generated: %s", draft.get("title"))
 
         # 3) Pick display images: prefer Gemini's own selection of clearest
         #    garment shots; fall back to evenly-spaced middle-60% selection.
@@ -72,27 +75,22 @@ def process_video_and_create_draft(video_path: str, db_session_factory) -> None:
                     upload_image_to_storage(path, os.path.basename(path))
                 )
             except Exception as exc:  # noqa: BLE001 - keep going on one bad image
-                print(f"[ingestion] WARNING: image upload failed ({path}): {exc}")
+                logger.warning("ingestion: image upload failed (%s): %s", path, exc)
 
         detected_size = (draft.get("detected_size") or "").strip()
         if detected_size:
-            print(
-                "[ingestion] NOTE: sizes was AI-detected from the video "
-                f"({detected_size!r}) — it MUST be manually confirmed during "
-                "review; AI size detection is only a suggestion."
+            logger.info(
+                "ingestion: AI-detected size %r — must be confirmed during review",
+                detected_size,
             )
         else:
-            print(
-                "[ingestion] NOTE: no size detected in the video — sizes left "
-                "empty and must be set manually during review."
-            )
+            logger.info("ingestion: no size detected in video")
 
         tag_price = draft.get("detected_tag_price")
         if tag_price is not None:
-            print(
-                f"[ingestion] NOTE: read printed tag price {tag_price} — stored "
-                "as detected_tag_price suggestion ONLY. base_price stays null "
-                "until the owner confirms it during review."
+            logger.info(
+                "ingestion: read printed tag price %s — stored as suggestion only",
+                tag_price,
             )
 
         # 6) Write the pending_review product row in a fresh session.
@@ -119,11 +117,13 @@ def process_video_and_create_draft(video_path: str, db_session_factory) -> None:
             )
             session.add(product)
             session.commit()
-            print(f"[ingestion] created product id={product.id} (pending_review)")
+            logger.info(
+                "ingestion: created product id=%s (pending_review)", product.id
+            )
         finally:
             session.close()
     except Exception as exc:  # noqa: BLE001 - log clearly, do not crash uvicorn
-        print(f"[ingestion] ERROR processing video: {exc}")
+        logger.exception("ingestion: ERROR processing video: %s", exc)
     finally:
         # Clean up the extracted frame images, temp frames dir, and the
         # temporary uploaded video copy (already persisted to storage).

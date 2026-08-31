@@ -10,8 +10,7 @@ router = APIRouter()
 
 @router.get("/", response_model=list[ProductOut])
 def list_products(db: Session = Depends(get_db)):
-    products = db.query(Product).filter(Product.status == "approved").all()
-    return products
+    return db.query(Product).filter(Product.status == "approved").all()
 
 
 @router.get("/{product_id}", response_model=ProductOut)
