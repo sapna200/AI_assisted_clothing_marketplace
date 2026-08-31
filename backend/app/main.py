@@ -1,8 +1,4 @@
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.requests import Request
-from starlette.responses import Response
 
 from app.core.config import settings
 from app.routers import admin_products, products
@@ -10,25 +6,55 @@ from app.routers import admin_products, products
 app = FastAPI(title="AI Clothing Marketplace API")
 
 
-class DynamicCORS(BaseHTTPMiddleware):
-    """CORS middleware that uses wildcard matching for allowed origins."""
+class DynamicCORS:
+    """ASGI middleware with wildcard origin matching for CORS."""
 
-    async def dispatch(self, request: Request, call_next):
-        origin = request.headers.get("origin")
-        response: Response = await call_next(request)
+    def __init__(self, app):
+        self.app = app
 
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        # Extract origin header
+        origin = None
+        for header_name, header_value in scope.get("headers", []):
+            if header_name == b"origin":
+                origin = header_value.decode("utf-8")
+                break
+
+        # Handle OPTIONS preflight
+        if scope["method"] == "OPTIONS" and origin and settings.is_origin_allowed(origin):
+            await send({
+                "type": "http.response.start",
+                "status": 200,
+                "headers": [
+                    (b"access-control-allow-origin", origin.encode("utf-8")),
+                    (b"access-control-allow-credentials", b"true"),
+                    (b"access-control-allow-methods", b"*"),
+                    (b"access-control-allow-headers", b"*"),
+                    (b"access-control-max-age", b"600"),
+                    (b"content-type", b"text/plain"),
+                ],
+            })
+            await send({"type": "http.response.body", "body": b""})
+            return
+
+        # Wrap send to inject CORS headers on responses
         if origin and settings.is_origin_allowed(origin):
-            response.headers["Access-Control-Allow-Origin"] = origin
-            response.headers["Access-Control-Allow-Credentials"] = "true"
-            response.headers["Access-Control-Allow-Methods"] = "*"
-            response.headers["Access-Control-Allow-Headers"] = "*"
-
-            # Handle preflight
-            if request.method == "OPTIONS":
-                response.headers["Access-Control-Max-Age"] = "600"
-                response.status_code = 200
-
-        return response
+            async def send_with_cors(message):
+                if message["type"] == "http.response.start":
+                    headers = list(message.get("headers", []))
+                    headers.append((b"access-control-allow-origin", origin.encode("utf-8")))
+                    headers.append((b"access-control-allow-credentials", b"true"))
+                    headers.append((b"access-control-allow-methods", b"*"))
+                    headers.append((b"access-control-allow-headers", b"*"))
+                    message["headers"] = headers
+                await send(message)
+            await self.app(scope, receive, send_with_cors)
+        else:
+            await self.app(scope, receive, send)
 
 
 app.add_middleware(DynamicCORS)
