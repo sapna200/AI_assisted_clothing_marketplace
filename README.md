@@ -4,14 +4,16 @@ An AI-assisted clothing marketplace where the owner uploads a **product video** 
 
 ---
 
-## Live Demo
+## Live Demo — Try It Now
 
 | What | URL |
 |---|---|
-| Storefront (Next.js) | https://ai-assisted-clothing-marketplace.vercel.app |
-| API docs (Swagger) | https://clothing-marketplace-api-z8q4.onrender.com/docs |
+| **Storefront (browse, cart, wishlist, checkout)** | https://ai-assisted-clothing-marketplace.vercel.app |
+| **Admin dashboard (review AI drafts, approve products)** | https://ai-assisted-clothing-marketplace.vercel.app/admin |
+| **API docs (Swagger UI)** | https://clothing-marketplace-api-z8q4.onrender.com/docs |
+| **Backend health check** | https://clothing-marketplace-api-z8q4.onrender.com/ |
 
-> ⚠️ The backend runs on Render's **free tier**: after ~15 minutes of inactivity it spins down and takes **30–60 seconds to wake up** on the next request. If the first page load is slow, that's a cold start — give it a moment (or ping `/products` once before demoing).
+> ⚠️ The backend runs on Render's **free tier**: after ~15 minutes of inactivity it spins down and takes **30–60 seconds to wake up** on the next request. If the first page load is slow, that's a cold start — give it a moment (or visit the API docs link above to wake it up before demoing).
 
 ---
 
