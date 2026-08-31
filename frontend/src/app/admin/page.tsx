@@ -38,7 +38,7 @@ export default function AdminPage() {
       return data.length;
     } catch {
       setLoadError(
-        "Could not load drafts. Make sure the backend is running on port 8000."
+        "Could not load drafts. Check that NEXT_PUBLIC_API_URL is set to the backend URL."
       );
       return 0;
     } finally {
