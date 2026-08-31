@@ -24,7 +24,27 @@ class Settings(BaseSettings):
 
     @property
     def allowed_origins(self) -> list[str]:
-        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+        origins = [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+        # Support wildcard for Vercel preview deployments (*.vercel.app)
+        # This is checked at request time in main.py via is_origin_allowed
+        return origins
+
+    def is_origin_allowed(self, origin: str) -> bool:
+        """Check if an origin is allowed, supporting wildcard patterns."""
+        if not origin:
+            return False
+        for pattern in self.allowed_origins:
+            if pattern == origin:
+                return True
+            # Wildcard subdomain match: *.vercel.app matches any.vercel.app
+            if pattern.startswith("*."):
+                wildcard_base = pattern[1:]  # e.g. ".vercel.app"
+                if origin.endswith(wildcard_base):
+                    # Ensure the part before the wildcard is a single subdomain label
+                    prefix = origin[: -len(wildcard_base)]
+                    if prefix and "." not in prefix and "/" not in prefix:
+                        return True
+        return False
 
 
 settings = Settings()
